@@ -2,7 +2,7 @@
 let
   inherit (builtins) readFile readDir fromJSON fromTOML toString attrNames match;
   inherit (lib)
-    stringLength splitString replaceStrings substring isString toLower
+    stringLength splitString replaceStrings substring isString isList toLower
     filter listToAttrs mapAttrs mapAttrsToList optionalAttrs warnIf;
 in
 rec {
@@ -109,12 +109,10 @@ rec {
   mkPkgInfoFromRegistry =
     mkSrc:
     # https://github.com/rust-lang/cargo/blob/2f3df16921deb34a92700f4d5a7ecfb424739558/src/cargo/sources/registry/mod.rs#L259
-    { name, vers, deps, features, cksum, yanked ? false, links ? null, v ? 1, ... }:
-    if v != 1 then
-      throw "${name} ${vers}: Registry layout version ${toString v} is too new to understand"
-    else
-    {
-      inherit name features yanked links;
+    { name, vers, deps, features, features2 ? null, cksum, yanked ? false, links ? null, v ? 1, ... }:
+    if v == 1 || v == 2 then    {
+      inherit name yanked links;
+      features = if isList features2 then features ++ features2 else features;
       version = vers;
       sha256 = cksum;
       dependencies = map sanitizeDep deps;
@@ -126,7 +124,9 @@ rec {
         version = vers;
         sha256 = cksum;
       };
-    };
+    }
+    else 
+      throw "${name} ${vers}: Registry layout version ${toString v} is too new to understand";
 
   # Sanitize a dependency reference.
   # Handling `package` and fill missing fields.
